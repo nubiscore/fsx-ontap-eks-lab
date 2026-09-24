@@ -1,0 +1,36 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.15.8
+      # fmt, validate, and plan tests against a mocked AWS provider: no credentials, no cost.
+      - run: make check
+
+  manifests:
+    runs-on: ubuntu-latest
+    env:
+      KUBECONFORM_VERSION: v0.8.0
+      CRD_SCHEMAS: https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install kubeconform
+        run: curl -sSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar -xz kubeconform
+      - name: Validate manifests
+        run: ./kubeconform -strict -summary -kubernetes-version 1.35.0 -schema-location default -schema-location "$CRD_SCHEMAS" k8s/storageclass-ontap-nas.yaml k8s/demo/
+      - name: Validate the rendered Trident backend
+        run: |
+          sed -e 's|${SVM_NAME}|svm1|' -e 's|${FSX_ID}|fs-0123456789abcdef0|' -e 's|${AWS_REGION}|ca-central-1|' \
+              -e 's|${VSADMIN_SECRET_ARN}|arn:aws:secretsmanager:ca-central-1:123456789012:secret:vsadmin|' \
+              k8s/backend-ontap-nas.yaml.tpl | ./kubeconform -strict -summary -schema-location "$CRD_SCHEMAS" -

@@ -1,0 +1,21 @@
+# Each PersistentVolume becomes its own FSx for ONTAP volume (ontap-nas driver),
+# so ONTAP snapshots, tiering and SnapMirror all apply per PV.
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fsx-ontap-nas
+provisioner: csi.trident.netapp.io
+parameters:
+  backendType: "ontap-nas"
+  provisioningType: "thin"
+  snapshots: "true"
+allowVolumeExpansion: true
+reclaimPolicy: Delete
+volumeBindingMode: Immediate
+---
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: fsx-ontap-snapshots
+driver: csi.trident.netapp.io
+deletionPolicy: Delete

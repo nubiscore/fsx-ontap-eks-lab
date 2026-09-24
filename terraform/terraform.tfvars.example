@@ -1,0 +1,15 @@
+# Copy to terraform.tfvars (git-ignored) and adjust.
+
+region = "ca-central-1"
+
+# Week 1: FSx for ONTAP + client only.
+enable_client = true
+enable_eks    = false
+
+# Week 2 / Kubernetes: turn on EKS and lock the API to your IP.
+# enable_eks              = true
+# eks_public_access_cidrs = ["203.0.113.10/32"]
+
+# Strongly recommended: get an email before the lab gets expensive.
+budget_alert_email = "you@example.com"
+budget_limit_usd   = 150

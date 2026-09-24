@@ -1,0 +1,12 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+terraform/terraform.tfvars
+*.auto.tfvars
+
+# Local tooling
+.DS_Store
+kubeconfig*

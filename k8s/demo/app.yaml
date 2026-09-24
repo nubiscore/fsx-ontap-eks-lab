@@ -1,0 +1,52 @@
+# A shared (ReadWriteMany) NFS volume written by two replicas at once:
+# something EBS cannot do, and the usual reason teams reach for FSx for ONTAP.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ontap-demo
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-data
+  namespace: ontap-demo
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: fsx-ontap-nas
+  resources:
+    requests:
+      storage: 5Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: writer
+  namespace: ontap-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: writer }
+  template:
+    metadata:
+      labels: { app: writer }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: writer
+          image: public.ecr.aws/docker/library/busybox:1.37
+          command: ["sh", "-c", "while true; do echo \"$(date -Iseconds) $(hostname)\" >> /data/log.txt; sleep 10; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: data, mountPath: /data }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: shared-data

@@ -1,0 +1,28 @@
+# Take an ONTAP snapshot through the Kubernetes API, then restore it into a
+# new claim. Both can be applied together: the restored claim stays Pending
+# until the snapshot is readyToUse.
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: shared-data-snap
+  namespace: ontap-demo
+spec:
+  volumeSnapshotClassName: fsx-ontap-snapshots
+  source:
+    persistentVolumeClaimName: shared-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: shared-data-restored
+  namespace: ontap-demo
+spec:
+  accessModes: ["ReadWriteMany"]
+  storageClassName: fsx-ontap-nas
+  dataSource:
+    apiGroup: snapshot.storage.k8s.io
+    kind: VolumeSnapshot
+    name: shared-data-snap
+  resources:
+    requests:
+      storage: 5Gi
