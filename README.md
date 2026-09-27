@@ -41,6 +41,8 @@ make footprint   # SSD vs capacity-pool footprint per volume, from your machine
 make down
 ```
 
+One thing the tiering policy tables do not say: `AUTO` and `SNAPSHOT_ONLY` never tier while the SSD tier is at or below 50% utilization. The lab's four small volumes leave it near 1%, so to watch those policies actually move, set `tiering_filler_gib = 480` in `terraform.tfvars` and follow step 4 in [docs/lab-plan.md](docs/lab-plan.md). Measured results are in [docs/results](docs/results/2026-09-tiering.md).
+
 Kubernetes, once week 1 is done:
 
 ```bash

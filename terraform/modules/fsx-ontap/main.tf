@@ -197,6 +197,32 @@ output "kms_key_arn" {
   value = aws_kms_key.fsx.arn
 }
 
+# --- Filler volume (round 2 of the tiering experiment) -----------------------
+# AUTO and SNAPSHOT_ONLY only tier once the SSD tier is above 50% utilization
+# (see docs/results/2026-09-tiering.md). Four 10 GiB volumes on a 1024 GiB tier
+# sit at about 1%, so this NONE volume exists purely to be filled with random
+# data until the tier crosses the threshold. Storage efficiency is off: random
+# data does not compress and the point is to consume SSD.
+
+resource "aws_fsx_ontap_volume" "filler" {
+  count = var.filler_gib > 0 ? 1 : 0
+
+  name                       = "tier_filler"
+  junction_path              = "/tier_filler"
+  size_in_megabytes          = var.filler_gib * 1024
+  storage_virtual_machine_id = aws_fsx_ontap_storage_virtual_machine.this.id
+  storage_efficiency_enabled = false
+  security_style             = "UNIX"
+  skip_final_backup          = true
+
+  tiering_policy {
+    name = "NONE"
+  }
+}
+
 output "volumes" {
-  value = { for k, v in aws_fsx_ontap_volume.tiering : k => { id = v.id, junction_path = v.junction_path, tiering = v.tiering_policy[0].name } }
+  value = merge(
+    { for k, v in aws_fsx_ontap_volume.tiering : k => { id = v.id, junction_path = v.junction_path, tiering = v.tiering_policy[0].name } },
+    { for v in aws_fsx_ontap_volume.filler : "tier_filler" => { id = v.id, junction_path = v.junction_path, tiering = v.tiering_policy[0].name } },
+  )
 }

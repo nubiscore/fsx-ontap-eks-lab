@@ -39,6 +39,7 @@ module "fsx" {
   storage_capacity_gib = var.fsx_storage_capacity_gib
   throughput_mbps      = var.fsx_throughput_mbps
   cooling_days         = var.tiering_demo_cooling_days
+  filler_gib           = var.tiering_filler_gib
 }
 
 # --- Client instance --------------------------------------------------------

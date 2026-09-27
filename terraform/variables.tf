@@ -35,6 +35,12 @@ variable "fsx_throughput_mbps" {
   }
 }
 
+variable "tiering_filler_gib" {
+  description = "Size in GiB of the optional tier_filler volume used to push SSD utilization past the 50% threshold for round 2 of the tiering experiment. 0 disables it. 480 was used for the published results."
+  type        = number
+  default     = 0
+}
+
 variable "tiering_demo_cooling_days" {
   description = "Cooling period for the AUTO volume. 2 is the minimum, so tiering shows up within a lab week."
   type        = number

@@ -10,6 +10,10 @@ enable_eks    = false
 # enable_eks              = true
 # eks_public_access_cidrs = ["203.0.113.10/32"]
 
+# Round 2 of the tiering experiment: AUTO and SNAPSHOT_ONLY do not tier while
+# the SSD tier is at or below 50% utilization. This adds a NONE volume to fill.
+# tiering_filler_gib = 480
+
 # Strongly recommended: get an email before the lab gets expensive.
 budget_alert_email = "you@example.com"
 budget_limit_usd   = 150

@@ -9,6 +9,7 @@ variables {
   eks_public_access_cidrs = []
   budget_alert_email      = ""
   budget_limit_usd        = 150
+  tiering_filler_gib      = 0
 }
 
 mock_provider "aws" {
@@ -86,4 +87,21 @@ run "rejects_invalid_throughput" {
   }
 
   expect_failures = [var.fsx_throughput_mbps]
+}
+
+run "filler_volume_only_when_requested" {
+  command = plan
+
+  variables {
+    tiering_filler_gib = 480
+  }
+
+  assert {
+    condition     = length(module.fsx.volumes) == 5 && contains(keys(module.fsx.volumes), "tier_filler")
+    error_message = "Setting tiering_filler_gib must add exactly one tier_filler volume."
+  }
+  assert {
+    condition     = module.fsx.volumes["tier_filler"].tiering == "NONE"
+    error_message = "The filler must never tier; it exists to occupy SSD."
+  }
 }

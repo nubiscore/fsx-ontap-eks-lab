@@ -34,6 +34,28 @@ done
 
 From your own machine, `make footprint` prints each volume's SSD and capacity-pool footprint through SSM and the ONTAP REST API; the password never leaves AWS. Run it now, after a few hours, and after the cooling period.
 
+### 4. Push the SSD tier past 50%, or AUTO never moves
+
+FSx for ONTAP does not tier `AUTO` or `SNAPSHOT_ONLY` volumes while the SSD tier is at or below 50% utilization, however long the data has been cold ([tiering thresholds](https://docs.aws.amazon.com/fsx/latest/ONTAPGuide/volume-storage-capacity.html#storage-tiering-thresholds)). Four 10 GiB volumes on a 1024 GiB tier sit at about 1%, so after step 3's cooling period only `ALL` will have moved. That is a real result, and the reason a generously sized production file system can run `AUTO` for months and save nothing.
+
+To see the policies actually tier, add a filler volume and fill it. In `terraform.tfvars`:
+
+```hcl
+tiering_filler_gib = 480
+```
+
+Then `make up`, and on the client:
+
+```bash
+sudo mkdir -p /mnt/tier_filler
+sudo mount -t nfs4 "$SVM_NFS_DNS":/tier_filler /mnt/tier_filler
+# about 456 GiB, roughly an hour at 128 MBps; utilization is measured against
+# the ~862 GiB usable after ONTAP's overhead, so this lands near 55%
+sudo dd if=/dev/urandom of=/mnt/tier_filler/fill.bin bs=1M count=466944 status=progress
+```
+
+The filler adds nothing to the bill: SSD is charged on the provisioned size. Once the tier is above 50%, data already past its cooling period is tiered by a background job 24 to 48 hours later. Run `make footprint` again after that window.
+
 To look at the same thing interactively, log in to the ONTAP CLI as `fsxadmin` (password from Secrets Manager):
 
 ```bash
