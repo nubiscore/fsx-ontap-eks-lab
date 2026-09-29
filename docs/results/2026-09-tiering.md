@@ -1,6 +1,6 @@
 # Tiering results, September 2026
 
-Measured on a live lab, not taken from documentation. The experiment ran in two rounds. Round 1 kept the SSD tier almost empty and showed that `AUTO` and `SNAPSHOT_ONLY` do not tier at all below the 50% utilization threshold. Round 2 filled the SSD tier past 50% and is waiting for the cooling window to complete.
+Measured on a live lab, not taken from documentation. The experiment ran in two rounds. Round 1 kept the SSD tier almost empty and showed that `AUTO` and `SNAPSHOT_ONLY` do not tier at all below the 50% utilization threshold. Round 2 filled the SSD tier past 50%, after which both policies tiered their eligible data in one pass, 41 hours later.
 
 ## Setup
 
@@ -27,21 +27,23 @@ Measured on a live lab, not taken from documentation. The experiment ran in two 
 | 20:29 | `tier_filler` created (`NONE`, 480 GiB) and about 456 GiB of random data written to it over NFS |
 | 2026-09-27 ~02:00 | SSD tier crosses 50% utilization (CloudWatch hourly averages: 47.4% for the hour starting 01:00, 54.6% from 02:00) |
 | 16:47 | Reading 4, SSD tier at 54.6%: no movement yet on `AUTO` or `SNAPSHOT_ONLY` |
-| 2026-09-28 02:00 to 2026-09-29 02:00 | Window in which round-2 tiering is expected (24 to 48 hours after eligibility) |
+| 2026-09-28 16:19 | Reading 5: still no movement, 38 hours after eligibility |
+| 2026-09-28 19:05 to 19:15 | **Round-2 tiering.** `AUTO` and `SNAPSHOT_ONLY` each moved 2.00 GiB to the capacity pool in the same five-minute window (CloudWatch per-volume `StorageUsed`, capacity pool: 0 at 19:05, 1.20 GiB at 19:10, 2.00 GiB at 19:15 UTC), about 41 hours after the tier crossed 50% |
+| 2026-09-29 16:24 | Reading 6 (round 2 final) |
 
 ## Readings (GiB, SSD / capacity pool)
 
 | Volume | Policy | Reading 1 (write) | Reading 2 (+90 s) | Reading 3 (round 1 final, +2 days, SSD 1.2%) | Reading 4 (round 2, SSD 54.6%, before window) | Round 2 final |
 | --- | --- | --- | --- | --- | --- | --- |
-| `tier_none` | `NONE` | 2.04 / 0 | 2.04 / 0 | 2.12 / 0 | 2.07 / 0 | pending |
-| `tier_all` | `ALL` | 2.04 / 0 | 0.05 / 2.00 | 0.14 / 2.00 | 0.08 / 2.00 | pending |
-| `tier_auto` | `AUTO` | 2.05 / 0 | 2.05 / 0 | 2.13 / 0 | 2.07 / 0 | pending |
-| `tier_snapshot_only` | `SNAPSHOT_ONLY` | 2.05 / 0 | 4.09 / 0 (2.03 snapshot) | 4.18 / 0 | 4.11 / 0 (2.03 snapshot) | pending |
-| `tier_filler` | `NONE` | n/a | n/a | n/a | 456.70 / 0 | pending |
+| `tier_none` | `NONE` | 2.04 / 0 | 2.04 / 0 | 2.12 / 0 | 2.07 / 0 | 2.08 / 0 |
+| `tier_all` | `ALL` | 2.04 / 0 | 0.05 / 2.00 | 0.14 / 2.00 | 0.08 / 2.00 | 0.09 / 2.00 |
+| `tier_auto` | `AUTO` | 2.05 / 0 | 2.05 / 0 | 2.13 / 0 | 2.07 / 0 | **0.09 / 2.00** |
+| `tier_snapshot_only` | `SNAPSHOT_ONLY` | 2.05 / 0 | 4.09 / 0 (2.03 snapshot) | 4.18 / 0 | 4.11 / 0 (2.03 snapshot) | **2.12 / 2.00** (snapshot moved, live data stayed) |
+| `tier_filler` | `NONE` | n/a | n/a | n/a | 456.70 / 0 | 456.74 / 0 |
 
 Reading 3 comes from CloudWatch (`StorageUsed` per volume and tier, five-minute average ending 2026-09-26 20:25 UTC); readings 1, 2 and 4 are from the ONTAP REST API. The small differences between sources (about 0.05 to 0.1 GiB) are metadata and rounding.
 
-Aggregate at reading 4: 470.4 GiB used of 861.8 GiB usable = 54.6%. The 1024 GiB provisioned becomes about 862 GiB usable once ONTAP's overhead (up to 16%) is set aside, and the utilization thresholds are measured against the usable figure.
+Aggregate at reading 4: 470.4 GiB used of 861.8 GiB usable = 54.6%; at reading 6, after tiering: 466.5 GiB = 54.1%, with 6.05 GiB in the capacity pool. The 1024 GiB provisioned becomes about 862 GiB usable once ONTAP's overhead (up to 16%) is set aside, and the utilization thresholds are measured against the usable figure.
 
 ## Round 1 result: the 50% threshold
 
@@ -60,13 +62,16 @@ With four 10 GiB volumes on a 1024 GiB tier, utilization was 1.2%, so the coolin
 
 To get past the threshold without changing the four test volumes, a fifth volume, `tier_filler` (`NONE`, 480 GiB), was created on 2026-09-26 at 20:29 UTC and filled with about 456 GiB of random data over NFS. Utilization rose from 1.2% to 54.6% over the following hours and crossed 50% at about 02:00 UTC on 2026-09-27. Because SSD is billed on the provisioned size, the filler adds nothing to the running cost.
 
-The round-1 data has already been cold for longer than the cooling period, so the remaining wait is the tiering scanner's 24 to 48 hour lag from the moment the tier became eligible. Reading 4, taken about 15 hours after the crossing, shows no movement yet, as expected. The round-2 final reading will be taken after 2026-09-29 02:00 UTC at the latest.
+The round-1 data had already been cold for longer than the cooling period, so the remaining wait was the tiering scanner's 24 to 48 hour lag from the moment the tier became eligible. Readings 4 and 5, at 15 and 38 hours after the crossing, showed no movement. Between 19:05 and 19:15 UTC on 2026-09-28, about 41 hours after the crossing, both `AUTO` and `SNAPSHOT_ONLY` tiered in the same pass.
+
+**Result.** `AUTO` ended at 0.09 GiB on SSD and 2.00 GiB in the pool, the same shape as `ALL`. `SNAPSHOT_ONLY` moved exactly the 2.03 GiB of blocks held only by the snapshot and kept its 2.12 GiB of live data on SSD. The cooling period is a floor, not a schedule: the data had been cold for four days, and what triggered the move was the tier filling past 50%, then the daily scanner reaching it. When it ran, it took everything eligible at once.
 
 ## What it shows so far
 
 - **`ALL` tiers in minutes, not days.** 2 GiB moved to the capacity pool between readings 1 and 2, about 90 seconds apart, leaving 0.05 GiB (metadata) on SSD.
 - **`NONE` keeps everything on SSD**, as expected.
 - **`AUTO` and `SNAPSHOT_ONLY` did not move after two days at 1.2% SSD utilization**, and will not until the tier is above 50%. The cooling period is necessary but not sufficient; see "Round 1 result" above.
+- **Once the tier was above 50%, both policies moved 41 hours later, in one pass.** `AUTO` tiered all its cold data; `SNAPSHOT_ONLY` tiered only the snapshot blocks and kept live data on SSD.
 - **Snapshots cost SSD until they tier.** After the overwrite, `tier_snapshot_only` holds 4.09 GiB on SSD: the new data plus 2.03 GiB of old blocks kept only by the snapshot. Those old blocks are what `SNAPSHOT_ONLY` should move after two days.
 
 ## Prices used
